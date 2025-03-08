@@ -7,6 +7,7 @@ except ImportError:
     print("config.py not found. Please create it based on config.example.py with your database credentials.")
     raise
 
+
 class Database:
     def __init__(self):
         # Retrieve credentials from config.py
@@ -94,25 +95,28 @@ class Database:
 
     def get_user_tasks(self, user_id):
         with self.conn.cursor() as cur:
-            cur.execute("SELECT id, title, description, due_date, priority, status, progress FROM tasks WHERE user_id = %s ORDER BY created_date",
-                       (user_id,))
+            cur.execute("""
+                SELECT id, title, description, due_date, priority, status, progress
+                FROM tasks WHERE user_id = %s
+            """, (user_id,))
             return cur.fetchall()
 
-    def add_task(self, user_id, title, description, due_date, priority, status, progress=0):
+    def add_task(self, user_id, title, desc, due_date, priority, status, progress=0):
         with self.conn.cursor() as cur:
-            cur.execute(
-                "INSERT INTO tasks (user_id, title, description, due_date, priority, status, progress) VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id",
-                (user_id, title, description, due_date, priority, status, progress)
-            )
+            cur.execute("""
+                INSERT INTO tasks (user_id, title, description, due_date, priority, status, progress)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                RETURNING id
+            """, (user_id, title, desc, due_date, priority, status, progress))
             self.conn.commit()
-            return cur.fetchone()[0]
 
-    def update_task(self, task_id, title, description, due_date, priority, status, progress=0):
+    def update_task(self, task_id, title, desc, due_date, priority, status, progress):
         with self.conn.cursor() as cur:
-            cur.execute(
-                "UPDATE tasks SET title = %s, description = %s, due_date = %s, priority = %s, status = %s, progress = %s WHERE id = %s",
-                (title, description, due_date, priority, status, progress, task_id)
-            )
+            cur.execute("""
+                UPDATE tasks
+                SET title = %s, description = %s, due_date = %s, priority = %s, status = %s, progress = %s
+                WHERE id = %s
+            """, (title, desc, due_date, priority, status, progress, task_id))
             self.conn.commit()
 
     def delete_task(self, task_id):
@@ -123,5 +127,5 @@ class Database:
     def get_task_status(self, task_id):
         with self.conn.cursor() as cur:
             cur.execute("SELECT status FROM tasks WHERE id = %s", (task_id,))
-            result = cur.fetchone()
-            return result[0] == "Completed" if result else False
+            status = cur.fetchone()
+            return status[0] == "Completed" if status else False

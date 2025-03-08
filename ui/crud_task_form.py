@@ -110,7 +110,7 @@ class CrudTaskForm(QWidget):
         ]
 
         for task in filtered_tasks:
-            item_text = f"[{'✓' if task[5] == 'Completed' else ' '}] {task[1]} (Due: {task[3]}, P: {task[4]}, S: {task[5]}, Progress: 0%)"  # Placeholder progress
+            item_text = f"[{'✓' if task[5] == 'Completed' else ' '}] {task[1]} (Due: {task[3]}, P: {task[4]}, S: {task[5]}, Progress: {task[6]}%)"
             item = QListWidgetItem(item_text)
             item.setData(Qt.ItemDataRole.UserRole, task[0])
             self.task_list.addItem(item)
@@ -118,14 +118,14 @@ class CrudTaskForm(QWidget):
     def task_selected(self, item):
         task_id = item.data(Qt.ItemDataRole.UserRole)
         with self.db.conn.cursor() as cur:
-            cur.execute("SELECT title, description, due_date, priority, status FROM tasks WHERE id = %s", (task_id,))
-            title, desc, due_date, priority, status = cur.fetchone()
+            cur.execute("SELECT title, description, due_date, priority, status, progress FROM tasks WHERE id = %s", (task_id,))
+            title, desc, due_date, priority, status, progress = cur.fetchone()
             self.title_input.setText(title)
             self.desc_input.setPlainText(desc)
             self.due_date_input.setDate(due_date)
             self.priority_input.setCurrentText(priority)
             self.status_input.setCurrentText(status)
-            self.progress_input.setValue(0)  # Placeholder until progress is stored
+            self.progress_input.setValue(progress or 0)  # Use actual progress
             self.complete_btn.setText("Mark Incomplete" if self.db.get_task_status(task_id) else "Mark Complete")
 
     def add_task(self):
@@ -140,8 +140,7 @@ class CrudTaskForm(QWidget):
             QMessageBox.warning(self, "Error", "Title cannot be empty")
             return
 
-        # Note: Progress is not yet stored in the database; update db.py first
-        self.db.add_task(self.user_id, title, desc, due_date, priority, status)
+        self.db.add_task(self.user_id, title, desc, due_date, priority, status, progress)
         self.clear_inputs()
         self.load_tasks()
         self.task_updated.emit()
@@ -163,8 +162,7 @@ class CrudTaskForm(QWidget):
             QMessageBox.warning(self, "Error", "Title cannot be empty")
             return
 
-        # Note: Progress is not yet stored in the database; update db.py first
-        self.db.update_task(task_id, title, desc, due_date, priority, status)
+        self.db.update_task(task_id, title, desc, due_date, priority, status, progress)
         self.load_tasks()
         self.task_updated.emit()
 
@@ -187,10 +185,11 @@ class CrudTaskForm(QWidget):
         task_id = current_item.data(Qt.ItemDataRole.UserRole)
         current_status = self.db.get_task_status(task_id)
         new_status = "Completed" if not current_status else self.status_input.currentText()
+        progress = 100
         with self.db.conn.cursor() as cur:
             cur.execute("SELECT title, description, due_date, priority, status FROM tasks WHERE id = %s", (task_id,))
             title, desc, due_date, priority, _ = cur.fetchone()
-            self.db.update_task(task_id, title, desc, due_date, priority, new_status)
+            self.db.update_task(task_id, title, desc, due_date, priority, new_status,progress )
         self.load_tasks()
         self.task_updated.emit()
 
