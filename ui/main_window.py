@@ -123,7 +123,7 @@ class TaskManager(QMainWindow):
                             "Task Due Tomorrow",
                             f"Task '{title}' is due tomorrow!",
                             QSystemTrayIcon.MessageIcon.Information,
-                            5000
+                            500000
                     ):
                         # Fallback if tray notification fails
                         QMessageBox.information(

@@ -121,9 +121,8 @@ class CrudTaskForm(QWidget):
             item = QListWidgetItem(item_text)
             item.setData(Qt.ItemDataRole.UserRole, task_id)
 
-            # Highlight tasks due tomorrow that aren't completed
             if due_date == tomorrow and status != "Completed":
-                item.setBackground(QBrush(QColor("yellow")))  # Or any color you prefer
+                item.setBackground(QBrush(QColor("yellow")))
 
             self.task_list.addItem(item)
 
@@ -138,7 +137,7 @@ class CrudTaskForm(QWidget):
             self.priority_input.setCurrentText(priority)
             self.status_input.setCurrentText(status)
             self.progress_input.setValue(progress or 0)
-            self.complete_btn.setText("Mark Incomplete" if self.db.get_task_status(task_id) else "Mark Complete")
+            self.complete_btn.setText("Mark Incomplete" if status == "Completed" else "Mark Complete")
 
     def add_task(self):
         title = self.title_input.text().strip()
@@ -195,12 +194,28 @@ class CrudTaskForm(QWidget):
             QMessageBox.warning(self, "Error", "Select a task to mark")
             return
         task_id = current_item.data(Qt.ItemDataRole.UserRole)
-        current_status = self.db.get_task_status(task_id)
-        new_status = "Completed" if not current_status else self.status_input.currentText()
+
+        # Fetch current task data
         with self.db.conn.cursor() as cur:
             cur.execute("SELECT title, description, due_date, priority, status, progress FROM tasks WHERE id = %s", (task_id,))
-            title, desc, due_date, priority, _, progress = cur.fetchone()
-            self.db.update_task(task_id, title, desc, due_date, priority, new_status, progress)
+            title, desc, due_date, priority, current_status, _ = cur.fetchone()
+
+        # Toggle status and set progress to 100 if marking complete
+        if current_status == "Completed":
+            new_status = "In Progress"  # Or revert to previous status if tracked
+            progress = self.progress_input.value()  # Keep current progress
+        else:
+            new_status = "Completed"
+            progress = 100  # Set progress to 100% when marking complete
+
+        # Update task in database
+        self.db.update_task(task_id, title, desc, due_date, priority, new_status, progress)
+
+        # Update UI
+        self.status_input.setCurrentText(new_status)
+        self.progress_input.setValue(progress)
+        self.complete_btn.setText("Mark Incomplete" if new_status == "Completed" else "Mark Complete")
+
         self.load_tasks()
         self.task_updated.emit()
 
