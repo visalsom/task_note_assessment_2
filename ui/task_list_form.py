@@ -1,6 +1,8 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QTableWidget, QScrollArea, QTableWidgetItem, QHeaderView
 from PyQt6.QtCore import Qt, QDate
+from PyQt6.QtGui import QColor, QBrush
 import datetime
+
 
 class TaskListForm(QWidget):
     def __init__(self, user_id, db):
@@ -15,7 +17,7 @@ class TaskListForm(QWidget):
 
         # Scroll area for grouped tasks
         scroll = QScrollArea()
-        scroll.setWidgetResizable(True)  # Allows the content to resize with the scroll area
+        scroll.setWidgetResizable(True)
         scroll_content = QWidget()
         scroll_layout = QVBoxLayout(scroll_content)
 
@@ -37,8 +39,7 @@ class TaskListForm(QWidget):
             table.setHorizontalHeaderLabels(headers)
             table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
             table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-            table.setWordWrap(True)  # Enable word wrap for text
-            # Set stretch mode for all columns except the last one, which will take remaining space
+            table.setWordWrap(True)
             for i in range(len(headers) - 1):
                 table.horizontalHeader().setSectionResizeMode(i, QHeaderView.ResizeMode.ResizeToContents)
             table.horizontalHeader().setSectionResizeMode(len(headers) - 1, QHeaderView.ResizeMode.Stretch)
@@ -63,33 +64,30 @@ class TaskListForm(QWidget):
 
         # Fetch tasks from the database
         tasks = self.db.get_user_tasks(self.user_id)
+        print(f"Loaded tasks: {tasks}")  # Debug: Check raw task data
 
-        # Structured table representation (for reference or export)
-        table_data = {
-            "table_name": "tasks",
-            "records": []
-        }
-
+        # Calculate today and tomorrow
         today = QDate.currentDate()
+        tomorrow = datetime.date.today() + datetime.timedelta(days=1)
+        print(f"Today: {today.toString('yyyy-MM-dd')}, Tomorrow: {tomorrow}")  # Debug: Verify dates
+
         for task in tasks:
             try:
                 task_id, title, description, due_date, priority, status, progress = task
+                print(f"Processing task: {title}, Due: {due_date}, Status: {status}")  # Debug: Task details
 
-                # Create a record dictionary for the table
-                record = {
-                    "id": task_id,
-                    "title": title,
-                    "description": description or "N/A",
-                    "due_date": str(due_date),
-                    "priority": priority,
-                    "status": status,
-                    "progress": progress
-                }
-                table_data["records"].append(record)
+                # Normalize due_date to datetime.date if needed
+                if isinstance(due_date, datetime.datetime):
+                    due_date = due_date.date()
+                    print(f"Converted due_date to date: {due_date}")
 
-                # Convert datetime.date to QDate for overdue check
+                # Convert to QDate for overdue check
                 due_date_qdate = QDate(due_date.year, due_date.month, due_date.day)
                 is_overdue = due_date_qdate < today and status != "Completed"
+                is_due_tomorrow = due_date == tomorrow and status != "Completed"
+
+                # Debug: Check conditions
+                print(f"  Is overdue: {is_overdue}, Is due tomorrow: {is_due_tomorrow}")
 
                 # Determine which table to add the task to
                 if status == "Not Started":
@@ -115,22 +113,25 @@ class TaskListForm(QWidget):
                 ]
                 for col, item in enumerate(items):
                     table.setItem(row_position, col, item)
-                    # Ensure the item can handle long text
                     item.setTextAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
 
-                # Apply overdue styling
+                # Apply styling: overdue (red) takes priority over due tomorrow (yellow)
                 if is_overdue:
+                    print(f"  Applying red background for overdue task: {title}")
                     for col in range(table.columnCount()):
                         item = table.item(row_position, col)
                         if item:
-                            item.setBackground(Qt.GlobalColor.red)
+                            item.setBackground(QBrush(QColor("red")))
+                elif is_due_tomorrow:
+                    print(f"  Applying yellow background for task due tomorrow: {title}")
+                    for col in range(table.columnCount()):
+                        item = table.item(row_position, col)
+                        if item:
+                            item.setBackground(QBrush(QColor("yellow")))
 
             except Exception as e:
                 print(f"Error processing task: {task}, Error: {e}")
 
-        # Print the structured table data for debugging
-        print("Structured Table Data:")
-        print(f"Table Name: {table_data['table_name']}")
-        print("Records:")
-        for record in table_data["records"]:
-            print(record)
+        # Resize rows for visibility
+        for table in [self.not_started_table, self.in_progress_table, self.completed_table]:
+            table.resizeRowsToContents()

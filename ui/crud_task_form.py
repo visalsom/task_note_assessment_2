@@ -2,6 +2,8 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QListWidget,
                              QPushButton, QLineEdit, QTextEdit, QMessageBox,
                              QLabel, QDateEdit, QComboBox, QSpinBox, QListWidgetItem)
 from PyQt6.QtCore import Qt, QDate, pyqtSignal
+from PyQt6.QtGui import QColor, QBrush
+import datetime
 
 
 class CrudTaskForm(QWidget):
@@ -104,15 +106,25 @@ class CrudTaskForm(QWidget):
         search_text = self.search_input.text().strip().lower()
         self.task_list.clear()
 
+        tomorrow = datetime.date.today() + datetime.timedelta(days=1)
         filtered_tasks = [
             task for task in self.all_tasks
             if search_text in task[1].lower()
         ]
 
         for task in filtered_tasks:
-            item_text = f"[{'✓' if task[5] == 'Completed' else ' '}] {task[1]} (Due: {task[3]}, P: {task[4]}, S: {task[5]}, Progress: {task[6]}%)"
+            task_id, title, desc, due_date, priority, status, progress = task
+            if isinstance(due_date, datetime.datetime):
+                due_date = due_date.date()
+
+            item_text = f"[{'✓' if status == 'Completed' else ' '}] {title} (Due: {due_date}, P: {priority}, S: {status}, Progress: {progress}%)"
             item = QListWidgetItem(item_text)
-            item.setData(Qt.ItemDataRole.UserRole, task[0])
+            item.setData(Qt.ItemDataRole.UserRole, task_id)
+
+            # Highlight tasks due tomorrow that aren't completed
+            if due_date == tomorrow and status != "Completed":
+                item.setBackground(QBrush(QColor("yellow")))  # Or any color you prefer
+
             self.task_list.addItem(item)
 
     def task_selected(self, item):
@@ -125,7 +137,7 @@ class CrudTaskForm(QWidget):
             self.due_date_input.setDate(due_date)
             self.priority_input.setCurrentText(priority)
             self.status_input.setCurrentText(status)
-            self.progress_input.setValue(progress or 0)  # Use actual progress
+            self.progress_input.setValue(progress or 0)
             self.complete_btn.setText("Mark Incomplete" if self.db.get_task_status(task_id) else "Mark Complete")
 
     def add_task(self):
@@ -185,11 +197,10 @@ class CrudTaskForm(QWidget):
         task_id = current_item.data(Qt.ItemDataRole.UserRole)
         current_status = self.db.get_task_status(task_id)
         new_status = "Completed" if not current_status else self.status_input.currentText()
-        progress = 100
         with self.db.conn.cursor() as cur:
-            cur.execute("SELECT title, description, due_date, priority, status FROM tasks WHERE id = %s", (task_id,))
-            title, desc, due_date, priority, _ = cur.fetchone()
-            self.db.update_task(task_id, title, desc, due_date, priority, new_status,progress )
+            cur.execute("SELECT title, description, due_date, priority, status, progress FROM tasks WHERE id = %s", (task_id,))
+            title, desc, due_date, priority, _, progress = cur.fetchone()
+            self.db.update_task(task_id, title, desc, due_date, priority, new_status, progress)
         self.load_tasks()
         self.task_updated.emit()
 
