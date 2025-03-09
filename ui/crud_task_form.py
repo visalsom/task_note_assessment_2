@@ -200,10 +200,10 @@ class CrudTaskForm(QWidget):
             cur.execute("SELECT title, description, due_date, priority, status, progress FROM tasks WHERE id = %s", (task_id,))
             title, desc, due_date, priority, current_status, _ = cur.fetchone()
 
-        # Toggle status and set progress to 100 if marking complete
+        # Toggle status and adjust progress
         if current_status == "Completed":
-            new_status = "In Progress"  # Or revert to previous status if tracked
-            progress = self.progress_input.value()  # Keep current progress
+            new_status = "In Progress"  # Revert to "In Progress"
+            progress = 0  # Set progress to 0% when marking incomplete
         else:
             new_status = "Completed"
             progress = 100  # Set progress to 100% when marking complete
